@@ -54,8 +54,9 @@ flowchart LR
 
 ## 2. Application architecture (Onion / DDD)
 
-Dependencies point inwards only. `LayerBoundariesTest` enforces the Domain rule
-and "Application must not import Infrastructure/Presentation".
+Dependencies point inwards only. `LayerBoundariesTest` enforces: Domain and Application are
+framework-free (no Illuminate, Laravel, Guzzle or helpers such as `config()`), Application
+never imports Infrastructure/Presentation, and Presentation never imports Infrastructure.
 
 ```mermaid
 flowchart TB
@@ -111,16 +112,16 @@ flowchart TB
 | Domain | `LeadRepository` | `upsertMany()` (idempotent), `findByProfileKey()`, `count()` | ✅ |
 | Domain | `SyncId`, `PageNumber`, `SyncStatus` | Sync identity, page arithmetic, allowed status transitions | ✅ |
 | Domain | `LeadsPageImported`, `LeadSyncCompleted`, `LeadSyncFailed` | Events with primitive payloads (gRPC-ready) | ✅ |
-| Application | `LeadsApiClient` port | `fetchPage`, `fetchPages(...)` → `RawPage\|PageFetchFailure` per page, `countLeads` | 🟡 |
-| Application | `PageImportScheduler` port | `schedule(SyncId, PageNumber ...)` | 🟡 |
-| Application | `DomainEventPublisher` port | Publish domain events to any transport | 🟡 |
-| Application | `SyncSettings` | `pageSize`, `maxPages`, `concurrency` (no `config()` in Application) | 🟡 |
-| Application | `LeadMapper` | Raw record → `Lead`; aliases; skip records without a key; drop invalid email/country | 🟡 |
-| Application | `LastPageResolver` | Work out the last page (see §4.3) | 🟡 |
-| Application | `ConcurrentPageImporter` | Import pages in windows of `concurrency` via `fetchPages` | 🟡 |
-| Application | `StartLeadSync` | Orchestrator: page 1 → resolve → schedule 2..N (or import inline) | 🟡 |
-| Application | `ImportLeadPage` | Fetch → map → upsert → publish `LeadsPageImported` | 🟡 |
-| Application | `SyncLeadsImmediately` | `--now` path, no queue | 🟡 |
+| Application | `LeadsApiClient` port | `fetchPage`, `fetchPages(...)` → `RawPage\|PageFetchFailure` per page, `countLeads` | ✅ |
+| Application | `PageImportScheduler` port | `schedule(SyncId, PageNumber ...)` | ✅ |
+| Application | `DomainEventPublisher` port | Publish domain events to any transport | ✅ |
+| Application | `SyncSettings` | `pageSize`, `maxPages`, `concurrency` (no `config()` in Application) | ✅ |
+| Application | `LeadMapper` | Raw record → `Lead`; aliases; skip records without a key; drop invalid email/country | ✅ |
+| Application | `LastPageResolver` | Work out the last page (see §4.3) | ✅ |
+| Application | `ConcurrentPageImporter` | Import pages in windows of `concurrency` via `fetchPages` | ✅ |
+| Application | `StartLeadSync` | Orchestrator: page 1 → resolve → schedule 2..N (or import inline) | ✅ |
+| Application | `ImportLeadPage` | Fetch → map → upsert → publish `LeadsPageImported` | ✅ |
+| Application | `SyncLeadsImmediately` | `--now` path, no queue | ✅ |
 | Infrastructure | `LeadscaptainHttpClient` | Base URL, `X-API-Key`, timeouts, `page`/`limit`, per-attempt logging | 🟡 step 4 |
 | Infrastructure | `RedisRateLimiter` | Sliding window in a Redis sorted set: `attempt()`, `availableIn()` | 🟡 step 4 |
 | Infrastructure | `LeadModel`, `EloquentLeadRepository`, migration | `upsert()` on `profile_key`, in chunks | 🟡 step 5 |
@@ -185,7 +186,7 @@ Sample page (`GET /api/v1/leads?page=1&limit=20`):
 
 | API field (sample) | Other accepted names | Domain | Column |
 |---|---|---|---|
-| `id` (int) ❓ | `PROFILE_KEY`, `profile_key` | `ProfileKey` (cast to string, trimmed, ≤ 191) | `profile_key` VARCHAR(191) UNIQUE |
+| `id` (int) ✅ decided | `profile_key`, `PROFILE_KEY` | `ProfileKey` (cast to string, trimmed, ≤ 191) | `profile_key` VARCHAR(191) UNIQUE |
 | `first_name` + `last_name` | `full_name`, `name` | `fullName` = trimmed "first last", blank → null | `full_name` |
 | `email` | | `Email` (lower-case; invalid → null) | `email` |
 | `position_title` | `title` | `positionTitle` | `position_title` |
@@ -193,7 +194,7 @@ Sample page (`GET /api/v1/leads?page=1&limit=20`):
 | `industry_name` | `industry` | `industry` | `industry` |
 | (not in sample) | `location`, `city` | `location` → null | `location` |
 | `country_code` | `country` | `CountryCode` (ISO alpha-2, upper; invalid → null) | `country_code` CHAR(2) |
-| `email_status` ❓ | | kept in `attributes` only | inside `attributes` |
+| `email_status` ✅ decided | | kept in `attributes` only | inside `attributes` |
 | whole record | | `attributes` (includes `first_name`, `last_name`, `email_status`) | `attributes` JSON |
 | (sync context) | | `SyncId` ❓ | `last_sync_id`, `last_synced_at` |
 
@@ -464,7 +465,7 @@ flowchart LR
 
 | Step | Scope | Main artefacts |
 |---|---|---|
-| 1–3 | Domain, Application, test fakes | Domain ✅ · Application and `tests/Support` 🟡 not in repo |
+| 1–3 | Domain, Application, test fakes | ✅ Domain, Application, `tests/Support` fakes |
 | 4 | Infrastructure / HTTP + rate limit | `LeadscaptainHttpClient`, `RedisRateLimiter` |
 | 5 | Infrastructure / persistence | migration, `LeadModel`, `EloquentLeadRepository` |
 | 6 | Infrastructure / queue, events, notifications, wiring | jobs, scheduler, publishers, notification, provider bindings |
@@ -489,8 +490,9 @@ flowchart LR
 | # | Topic | Options / note |
 |---|---|---|
 | 1 | Real `/api/v1/leads` response shape | Documented sample: `data[]` + `pagination{page, limit, total, total_pages}`. Confirm against the live API, then narrow `LeadMapper::ALIASES` and the fixtures; Domain unchanged |
-| 2 | Unique key: `id` (sample) or `PROFILE_KEY` (live spec) | The sample has only `id`. Proposed: prefer `PROFILE_KEY` when present, else `id`. Mixing the two across runs would create duplicates, so pick one once the live response is known |
-| 2a | `email_status` | Kept in `attributes` for now. A first-class field would change the Domain `Lead` (needs approval) |
+| 2 | Unique key | ✅ Decided: `id` from the response is the profile key (`profile_key`/`PROFILE_KEY` only as fallbacks) |
+| 2a | `email_status` | ✅ Decided: kept in `attributes` only; Domain unchanged |
+| 2c | Developing without an API key | ✅ Decided: a mock Leadscaptain API container serves the documented shape; going live = change `LEADSCAPTAIN_BASE_URL` and `LEADSCAPTAIN_API_KEY` |
 | 2b | Auth scheme / header | Sample shows Bearer; live spec says `X-API-Key`. Make both configurable |
 | 3 | `release()` counts as an attempt | `retryUntil()` + own count of API failures (max 3) |
 | 4 | `last_sync_id` source | `upsertMany()` has no `SyncId`: add an optional parameter (Domain interface change, needs approval) or drop the column |
