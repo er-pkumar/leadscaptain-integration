@@ -130,7 +130,8 @@ flowchart TB
 | Infrastructure | `LeadModel`, `EloquentLeadRepository`, migration | `upsert()` on `profile_key` in chunks of 500, one transaction; loaded via `loadMigrationsFrom` | ✅ step 5 |
 | Infrastructure | Jobs, `BatchPageImportScheduler`, publishers, notification | Queue, batch lifecycle, events, alerts | 🟡 step 6 |
 | Infrastructure | `LeadscaptainServiceProvider` | Config, log channel ✅; bindings, migrations, commands, routes 🟡 | ✅/🟡 |
-| Presentation | `leadscaptain:sync {--now}`, 3 routes, `LeadResource` | Entry points; call Application only | 🟡 step 7 |
+| Presentation | `GET {prefix}/leads` (`LeadController`, `LeadResource`) → `ListStoredLeads` → `LeadQuery` | Paginated stored leads; calls Application only | ✅ step 7 |
+| Presentation | `leadscaptain:sync {--now}`, `POST /sync`, `GET /sync/{batchId}` | Need step 6 (jobs, batch, wiring) | 🟡 step 7 |
 
 ### Port → adapter bindings (service provider)
 
@@ -431,7 +432,7 @@ flowchart LR
 |---|---|---|
 | `php artisan leadscaptain:sync` | Queue orchestrator, print sync id | Application (port for dispatch ❓) |
 | `php artisan leadscaptain:sync --now` | Run in process, print summary table | `SyncLeadsImmediately` |
-| `GET /api/leadscaptain/leads` | Paginated `LeadResource` | Read use case / query ❓ |
+| `GET /api/leadscaptain/leads?page=&per_page=` | ✅ `{data, meta, links}`, `per_page` ≤ 100, JSON 422 on bad input | `ListStoredLeads` → `LeadQuery` (`EloquentLeadQuery`) |
 | `POST /api/leadscaptain/sync` | `202` + sync id | Same as the command |
 | `GET /api/leadscaptain/sync/{batchId}` | Batch progress | Batch status query ❓ |
 
@@ -471,7 +472,7 @@ flowchart LR
 | 4 | Infrastructure / HTTP + rate limit | `LeadscaptainHttpClient`, `RedisRateLimiter` |
 | 5 | Infrastructure / persistence | migration, `LeadModel`, `EloquentLeadRepository` |
 | 6 | Infrastructure / queue, events, notifications, wiring | jobs, scheduler, publishers, notification, provider bindings |
-| 7 | Presentation | command, controllers, resource, routes |
+| 7 | Presentation | ✅ leads endpoint · 🟡 command, sync endpoints (after step 6) |
 | 8 | CI | `.github/workflows/ci.yml` (Pint, PHPStan, PHPUnit ≥ 90%, MySQL + Redis, prod build, deploy) |
 | 9 | Docs and evidence | README, real API run output |
 
