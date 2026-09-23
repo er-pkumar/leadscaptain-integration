@@ -18,7 +18,8 @@ flowchart LR
     user([Operator / reviewer])
     api[(Leadscaptain API<br/>api.leadscaptain.com)]
     grpc[[gRPC microservices<br/>future]]
-    mail[[Mail]]
+    alert[[leadscaptain log channel<br/>stderr JSON]]
+    mock[(Mock Leadscaptain API<br/>mock-api:8081<br/>profile: mock)]
 
     subgraph docker["docker compose: leadscaptain"]
         nginx["nginx :8080"]
@@ -37,7 +38,8 @@ flowchart LR
     horizon -- "rate-limit timestamps" --> redis
     horizon -- "upsert leads, job_batches" --> db
     app -- "read leads, batch progress" --> db
-    horizon -. "LeadSyncFailed notification" .-> mail
+    horizon -. "LeadSyncFailed notification (log)" .-> alert
+    horizon -. "until a key exists:<br/>LEADSCAPTAIN_BASE_URL=http://mock-api:8081" .-> mock
     horizon -. "domain events (stub)" .-> grpc
 ```
 
@@ -49,6 +51,7 @@ flowchart LR
 | `redis` | `redis:7-alpine` | Queue, Horizon state, rate-limiter window |
 | `horizon` | same image as `app` | Runs `SyncLeadsOrchestratorJob` and `ImportLeadPageJob` |
 | `package-tests` | `packages/leadscaptain/Dockerfile` | Standalone Testbench suite (no host app) |
+| `mock-api` | `php:8.4-cli-alpine` + `docker/mock-api/router.php` | Offline stand-in for the API (documented shape, simulated 401/429/500/503); profile `mock` |
 
 ---
 
@@ -448,7 +451,7 @@ flowchart LR
     sp --> rlc["RedisRateLimiter<br/>max_requests, window_seconds, redis_connection"]
     sp --> jobc["Jobs<br/>retry times, backoff_ms, rate_limit_backoff_ms, queue"]
     sp --> logc["Log channel<br/>channel, stream, level"]
-    sp --> nc["Notification<br/>mail_to"]
+    sp --> nc["Failure notification<br/>log channel (mail later)"]
 ```
 
 ---
@@ -493,6 +496,7 @@ flowchart LR
 | 2 | Unique key | ✅ Decided: `id` from the response is the profile key (`profile_key`/`PROFILE_KEY` only as fallbacks) |
 | 2a | `email_status` | ✅ Decided: kept in `attributes` only; Domain unchanged |
 | 2c | Developing without an API key | ✅ Decided: a mock Leadscaptain API container serves the documented shape; going live = change `LEADSCAPTAIN_BASE_URL` and `LEADSCAPTAIN_API_KEY` |
+| 2d | Failure notification channel | ✅ Decided: `LeadSyncFailedNotification` writes to the `leadscaptain` log channel for now; mail (`LEADSCAPTAIN_ALERT_MAIL`) can be added later |
 | 2b | Auth scheme / header | Sample shows Bearer; live spec says `X-API-Key`. Make both configurable |
 | 3 | `release()` counts as an attempt | `retryUntil()` + own count of API failures (max 3) |
 | 4 | `last_sync_id` source | `upsertMany()` has no `SyncId`: add an optional parameter (Domain interface change, needs approval) or drop the column |
