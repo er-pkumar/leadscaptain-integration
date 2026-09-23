@@ -70,6 +70,16 @@ return [
         'level' => env('LEADSCAPTAIN_LOG_LEVEL', 'info'),
     ],
 
+    /*
+    | HTTP routes (GET {prefix}/leads). Add auth middleware (for example
+    | "auth:sanctum") before exposing lead data outside a demo.
+    */
+    'routes' => [
+        'enabled' => (bool) env('LEADSCAPTAIN_ROUTES_ENABLED', true),
+        'prefix' => env('LEADSCAPTAIN_ROUTE_PREFIX', 'api/leadscaptain'),
+        'middleware' => ['api'],
+    ],
+
     'notifications' => [
         'mail_to' => env('LEADSCAPTAIN_ALERT_MAIL'),
     ],
