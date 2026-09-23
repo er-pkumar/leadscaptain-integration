@@ -20,6 +20,7 @@ final class ServiceProviderTest extends TestCase
     public function test_it_registers_a_dedicated_log_channel(): void
     {
         $this->assertIsArray(config('logging.channels.leadscaptain'));
+        $this->assertSame('leadscaptain', config('logging.channels.leadscaptain.name'));
 
         Log::channel('leadscaptain')->info('leadscaptain smoke test');
 

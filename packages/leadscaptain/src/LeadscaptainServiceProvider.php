@@ -43,6 +43,7 @@ final class LeadscaptainServiceProvider extends ServiceProvider
 
         $config->set("logging.channels.{$channel}", [
             'driver' => 'monolog',
+            'name' => $channel,
             'handler' => StreamHandler::class,
             'handler_with' => [
                 'stream' => $config->get('leadscaptain.logging.stream', 'php://stderr'),
