@@ -147,7 +147,7 @@ flowchart TB
 
 ```mermaid
 flowchart LR
-    json["API JSON page<br/>data[] + meta?"] --> raw["RawPage<br/>records + PaginationMeta"]
+    json["API JSON page<br/>data[] + pagination{}"] --> raw["RawPage<br/>records + PaginationMeta"]
     raw --> mapper{"LeadMapper<br/>aliases"}
     mapper -- "no profile key" --> skip["SkippedRecord<br/>counted, logged"]
     mapper -- "valid" --> leadN["Lead<br/>invalid email/country → null"]
@@ -158,21 +158,73 @@ flowchart LR
     upsert --> evt["LeadsPageImported<br/>imported / skipped counts"]
 ```
 
-Field mapping. Aliases stay in `LeadMapper::ALIASES` and should be narrowed
-once a real response sample is available.
+Field mapping, based on the **documented sample response** (not yet checked
+against the live API). `LeadMapper::ALIASES` keeps the other names as a fallback
+until a live response confirms the shape.
 
-| API field (live; aliases ❓) | Domain | Column |
+Sample page (`GET /api/v1/leads?page=1&limit=20`):
+
+```json
+{
+  "data": [
+    {
+      "id": 123,
+      "first_name": "John",
+      "last_name": "Doe",
+      "email": "john.doe@example.com",
+      "position_title": "Senior Developer",
+      "company_name": "ABC Technologies",
+      "country_code": "IN",
+      "industry_name": "Technology",
+      "email_status": "verified"
+    }
+  ],
+  "pagination": { "page": 1, "limit": 20, "total": 1, "total_pages": 1 }
+}
+```
+
+| API field (sample) | Other accepted names | Domain | Column |
+|---|---|---|---|
+| `id` (int) ❓ | `PROFILE_KEY`, `profile_key` | `ProfileKey` (cast to string, trimmed, ≤ 191) | `profile_key` VARCHAR(191) UNIQUE |
+| `first_name` + `last_name` | `full_name`, `name` | `fullName` = trimmed "first last", blank → null | `full_name` |
+| `email` | | `Email` (lower-case; invalid → null) | `email` |
+| `position_title` | `title` | `positionTitle` | `position_title` |
+| `company_name` | `company` | `companyName` | `company_name` |
+| `industry_name` | `industry` | `industry` | `industry` |
+| (not in sample) | `location`, `city` | `location` → null | `location` |
+| `country_code` | `country` | `CountryCode` (ISO alpha-2, upper; invalid → null) | `country_code` CHAR(2) |
+| `email_status` ❓ | | kept in `attributes` only | inside `attributes` |
+| whole record | | `attributes` (includes `first_name`, `last_name`, `email_status`) | `attributes` JSON |
+| (sync context) | | `SyncId` ❓ | `last_sync_id`, `last_synced_at` |
+
+Pagination block → `PaginationMeta`:
+
+| Sample field | Other accepted names | `PaginationMeta` |
 |---|---|---|
-| `PROFILE_KEY` / `profile_key` / … | `ProfileKey` (trimmed, ≤ 191) | `profile_key` VARCHAR(191) UNIQUE |
-| full name aliases | `fullName` (trimmed, blank → null) | `full_name` |
-| email aliases | `Email` (lower-case; invalid → null) | `email` |
-| position title | `positionTitle` | `position_title` |
-| company name | `companyName` | `company_name` |
-| industry | `industry` | `industry` |
-| location | `location` | `location` |
-| country code | `CountryCode` (ISO alpha-2, upper; invalid → null) | `country_code` CHAR(2) |
-| whole record | `attributes` | `attributes` JSON |
-| (sync context) | `SyncId` ❓ | `last_sync_id`, `last_synced_at` |
+| `pagination.total_pages` | `meta.last_page`, `last_page` | `lastPage` |
+| `pagination.total` | `meta.total`, `total` | `total` |
+| `pagination.limit` | `meta.per_page`, `per_page` | `perPage` |
+| `pagination.page` | `meta.current_page`, `current_page` | `currentPage` |
+
+Response codes:
+
+| Status | Body | Handling |
+|---|---|---|
+| `200` | `data[]` + `pagination{}` | Map and upsert |
+| `401` | `{"message":"Missing or invalid API token"}` | **Not retried**: fail the sync at once, log it, send the notification |
+| `429` | (not in the doc; required by the spec) | Retry: `Retry-After`, else 1s / 2s / 4s |
+| `503` | `{"message":"Database is initializing"}` | Retry: 1s / 5s / 30s |
+| other `5xx`, timeout | | Retry: 1s / 5s / 30s |
+| other `4xx` | | Not retried: page fails |
+
+Authentication: `apiKeyAuth` or `bearerAuth`. The API-key header name is not in
+the doc (the live spec says `X-API-Key`), so both the scheme and the header name are
+configurable (❓ proposed `LEADSCAPTAIN_AUTH_SCHEME=api_key|bearer`,
+`LEADSCAPTAIN_API_KEY_HEADER=X-API-Key`).
+
+Filters (`q`, `position_title`, `company_name`, `country_code`, `industry_name`,
+`email_status`) exist, but the assignment is "fetch **all** leads", so the sync
+sends only `page` and `limit`. Supporting filters is optional, later work.
 
 ### 3.2 Storage model
 
@@ -314,10 +366,10 @@ flowchart TD
 
 ```mermaid
 flowchart TD
-    p1["RawPage (page 1)"] --> a{"meta.last_page?"}
+    p1["RawPage (page 1)"] --> a{"pagination.total_pages?<br/>(alias meta.last_page)"}
     a -- yes --> known
-    a -- no --> b{"meta.total and per_page?"}
-    b -- yes --> calc["ceil(total / per_page)"] --> known
+    a -- no --> b{"pagination.total and limit?"}
+    b -- yes --> calc["ceil(total / limit)"] --> known
     b -- no --> c{"records < pageSize?"}
     c -- yes --> one["last page = 1"] --> known
     c -- no --> d{"countLeads() != null?"}
@@ -436,8 +488,10 @@ flowchart LR
 
 | # | Topic | Options / note |
 |---|---|---|
-| 1 | Real `/api/v1/leads` response shape | Narrow `LeadMapper::ALIASES` and the fixtures; Domain unchanged |
-| 2 | `profile_key` as the unique key | Confirm with a real sample |
+| 1 | Real `/api/v1/leads` response shape | Documented sample: `data[]` + `pagination{page, limit, total, total_pages}`. Confirm against the live API, then narrow `LeadMapper::ALIASES` and the fixtures; Domain unchanged |
+| 2 | Unique key: `id` (sample) or `PROFILE_KEY` (live spec) | The sample has only `id`. Proposed: prefer `PROFILE_KEY` when present, else `id`. Mixing the two across runs would create duplicates, so pick one once the live response is known |
+| 2a | `email_status` | Kept in `attributes` for now. A first-class field would change the Domain `Lead` (needs approval) |
+| 2b | Auth scheme / header | Sample shows Bearer; live spec says `X-API-Key`. Make both configurable |
 | 3 | `release()` counts as an attempt | `retryUntil()` + own count of API failures (max 3) |
 | 4 | `last_sync_id` source | `upsertMany()` has no `SyncId`: add an optional parameter (Domain interface change, needs approval) or drop the column |
 | 5 | `Http::pool` and the rate limiter | Take one slot per request before each window |
