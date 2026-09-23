@@ -125,8 +125,8 @@ flowchart TB
 | Application | `StartLeadSync` | Orchestrator: page 1 → resolve → schedule 2..N (or import inline) | ✅ |
 | Application | `ImportLeadPage` | Fetch → map → upsert → publish `LeadsPageImported` | ✅ |
 | Application | `SyncLeadsImmediately` | `--now` path, no queue | ✅ |
-| Infrastructure | `LeadscaptainHttpClient` | Base URL, `X-API-Key`, timeouts, `page`/`limit`, per-attempt logging | 🟡 step 4 |
-| Infrastructure | `RedisRateLimiter` | Sliding window in a Redis sorted set: `attempt()`, `availableIn()` | 🟡 step 4 |
+| Infrastructure | `LeadscaptainHttpClient`, `ApiSettings`, `RetryPolicy` | Base URL, `X-API-Key` or Bearer, timeouts, `page`/`limit`, per-attempt logging; `fetchPages` pools, rate-limits and retries | ✅ step 4 |
+| Infrastructure | `RedisRateLimiter` (`RequestRateLimiter`) | Sliding window in a Redis sorted set (atomic Lua, Redis clock): `attempt()`, `availableIn()` | ✅ step 4 |
 | Infrastructure | `LeadModel`, `EloquentLeadRepository`, migration | `upsert()` on `profile_key`, in chunks | 🟡 step 5 |
 | Infrastructure | Jobs, `BatchPageImportScheduler`, publishers, notification | Queue, batch lifecycle, events, alerts | 🟡 step 6 |
 | Infrastructure | `LeadscaptainServiceProvider` | Config, log channel ✅; bindings, migrations, commands, routes 🟡 | ✅/🟡 |
@@ -223,8 +223,8 @@ Response codes:
 
 Authentication: `apiKeyAuth` or `bearerAuth`. The API-key header name is not in
 the doc (the live spec says `X-API-Key`), so both the scheme and the header name are
-configurable (❓ proposed `LEADSCAPTAIN_AUTH_SCHEME=api_key|bearer`,
-`LEADSCAPTAIN_API_KEY_HEADER=X-API-Key`).
+configurable: `LEADSCAPTAIN_AUTH_SCHEME` (`api_key` by default, or `bearer`) and
+`LEADSCAPTAIN_API_KEY_HEADER` (default `X-API-Key`).
 
 Filters (`q`, `position_title`, `company_name`, `country_code`, `industry_name`,
 `email_status`) exist, but the assignment is "fetch **all** leads", so the sync
@@ -497,10 +497,10 @@ flowchart LR
 | 2a | `email_status` | ✅ Decided: kept in `attributes` only; Domain unchanged |
 | 2c | Developing without an API key | ✅ Decided: a mock Leadscaptain API container serves the documented shape; going live = change `LEADSCAPTAIN_BASE_URL` and `LEADSCAPTAIN_API_KEY` |
 | 2d | Failure notification channel | ✅ Decided: `LeadSyncFailedNotification` writes to the `leadscaptain` log channel for now; mail (`LEADSCAPTAIN_ALERT_MAIL`) can be added later |
-| 2b | Auth scheme / header | Sample shows Bearer; live spec says `X-API-Key`. Make both configurable |
+| 2b | Auth scheme / header | ✅ Decided: `LEADSCAPTAIN_AUTH_SCHEME` = `api_key` (default) or `bearer`, `LEADSCAPTAIN_API_KEY_HEADER` (default `X-API-Key`) |
 | 3 | `release()` counts as an attempt | `retryUntil()` + own count of API failures (max 3) |
 | 4 | `last_sync_id` source | `upsertMany()` has no `SyncId`: add an optional parameter (Domain interface change, needs approval) or drop the column |
-| 5 | `Http::pool` and the rate limiter | Take one slot per request before each window |
+| 5 | `Http::pool` and the rate limiter | ✅ Decided: `fetchPages()` takes one slot per request and retries itself; `fetchPage()` leaves both to the page job |
 | 6 | Presentation → queue dispatch | The command must not import Infrastructure: needs an Application port/use case to start a sync, plus read ports for leads and batch status |
 | 7 | Orchestrator runtime when the last page is unknown | Raise job and Horizon `timeout` for the `leadscaptain` queue |
 | 8 | Deploy target | Placeholder CI job until a target is given |
