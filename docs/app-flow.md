@@ -769,7 +769,6 @@ Every tracked file, grouped by folder. "Flow" links to the sections above.
 |---|---|
 | `docs/architecture.md` | Design: containers, layers, data model, flow diagrams, open decisions |
 | `docs/app-flow.md` | This file: flows and file reference |
-| `packages/.env.example` | Leftover example (`LEADSCAPTAIN_API_KEY`, `IS_APP_ENV`); not read by anything |
 
 ### Package: `packages/leadscaptain` (tooling)
 
