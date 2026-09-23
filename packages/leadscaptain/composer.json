@@ -1,0 +1,52 @@
+{
+    "name": "leadscaptain/laravel-leadscaptain",
+    "description": "Laravel package that fetches all leads from the Leadscaptain API concurrently, built with Onion Architecture and DDD.",
+    "type": "library",
+    "license": "MIT",
+    "keywords": ["laravel", "leadscaptain", "leads", "api-client"],
+    "require": {
+        "php": "^8.4",
+        "guzzlehttp/guzzle": "^7.8",
+        "illuminate/bus": "^12.0|^13.0",
+        "illuminate/contracts": "^12.0|^13.0",
+        "illuminate/database": "^12.0|^13.0",
+        "illuminate/http": "^12.0|^13.0",
+        "illuminate/queue": "^12.0|^13.0",
+        "illuminate/support": "^12.0|^13.0"
+    },
+    "require-dev": {
+        "larastan/larastan": "^3.0",
+        "laravel/pint": "^1.20",
+        "orchestra/testbench": "^10.0|^11.0",
+        "phpunit/phpunit": "^11.5|^12.0"
+    },
+    "autoload": {
+        "psr-4": {
+            "Leadscaptain\\": "src/"
+        }
+    },
+    "autoload-dev": {
+        "psr-4": {
+            "Leadscaptain\\Tests\\": "tests/"
+        }
+    },
+    "extra": {
+        "laravel": {
+            "providers": [
+                "Leadscaptain\\LeadscaptainServiceProvider"
+            ]
+        }
+    },
+    "scripts": {
+        "test": "phpunit",
+        "test:coverage": "phpunit --coverage-text",
+        "lint": "pint --test",
+        "format": "pint",
+        "stan": "phpstan analyse --memory-limit=1G"
+    },
+    "config": {
+        "sort-packages": true
+    },
+    "minimum-stability": "stable",
+    "prefer-stable": true
+}
