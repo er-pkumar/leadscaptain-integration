@@ -127,7 +127,7 @@ flowchart TB
 | Application | `SyncLeadsImmediately` | `--now` path, no queue | ✅ |
 | Infrastructure | `LeadscaptainHttpClient`, `ApiSettings`, `RetryPolicy` | Base URL, `X-API-Key` or Bearer, timeouts, `page`/`limit`, per-attempt logging; `fetchPages` pools, rate-limits and retries | ✅ step 4 |
 | Infrastructure | `RedisRateLimiter` (`RequestRateLimiter`) | Sliding window in a Redis sorted set (atomic Lua, Redis clock): `attempt()`, `availableIn()` | ✅ step 4 |
-| Infrastructure | `LeadModel`, `EloquentLeadRepository`, migration | `upsert()` on `profile_key`, in chunks | 🟡 step 5 |
+| Infrastructure | `LeadModel`, `EloquentLeadRepository`, migration | `upsert()` on `profile_key` in chunks of 500, one transaction; loaded via `loadMigrationsFrom` | ✅ step 5 |
 | Infrastructure | Jobs, `BatchPageImportScheduler`, publishers, notification | Queue, batch lifecycle, events, alerts | 🟡 step 6 |
 | Infrastructure | `LeadscaptainServiceProvider` | Config, log channel ✅; bindings, migrations, commands, routes 🟡 | ✅/🟡 |
 | Presentation | `leadscaptain:sync {--now}`, 3 routes, `LeadResource` | Entry points; call Application only | 🟡 step 7 |
@@ -198,8 +198,8 @@ Sample page (`GET /api/v1/leads?page=1&limit=20`):
 | (not in sample) | `location`, `city` | `location` → null | `location` |
 | `country_code` | `country` | `CountryCode` (ISO alpha-2, upper; invalid → null) | `country_code` CHAR(2) |
 | `email_status` ✅ decided | | kept in `attributes` only | inside `attributes` |
-| whole record | | `attributes` (includes `first_name`, `last_name`, `email_status`) | `attributes` JSON |
-| (sync context) | | `SyncId` ❓ | `last_sync_id`, `last_synced_at` |
+| whole record | | `attributes` (includes `first_name`, `last_name`, `email_status`) | `raw_attributes` JSON (renamed: `attributes` clashes with Eloquent) |
+| (sync context) | | not passed to the repository ❓ | `last_synced_at` (set on every upsert); `last_sync_id` not added yet |
 
 Pagination block → `PaginationMeta`:
 
@@ -244,8 +244,7 @@ erDiagram
         varchar industry "nullable"
         varchar location "nullable"
         char country_code "2, nullable"
-        json attributes "raw record"
-        varchar last_sync_id "nullable, = batch id"
+        json raw_attributes "full source record"
         timestamp last_synced_at "nullable"
         timestamp created_at
         timestamp updated_at
@@ -271,7 +270,7 @@ erDiagram
         longtext exception
         timestamp failed_at
     }
-    JOB_BATCHES ||--o{ LEADSCAPTAIN_LEADS : "last_sync_id (logical, no FK)"
+    JOB_BATCHES ||..o{ LEADSCAPTAIN_LEADS : "imports (no stored link yet)"
     JOB_BATCHES ||--o{ FAILED_JOBS : "failed_job_ids"
 ```
 
@@ -499,7 +498,7 @@ flowchart LR
 | 2d | Failure notification channel | ✅ Decided: `LeadSyncFailedNotification` writes to the `leadscaptain` log channel for now; mail (`LEADSCAPTAIN_ALERT_MAIL`) can be added later |
 | 2b | Auth scheme / header | ✅ Decided: `LEADSCAPTAIN_AUTH_SCHEME` = `api_key` (default) or `bearer`, `LEADSCAPTAIN_API_KEY_HEADER` (default `X-API-Key`) |
 | 3 | `release()` counts as an attempt | `retryUntil()` + own count of API failures (max 3) |
-| 4 | `last_sync_id` source | `upsertMany()` has no `SyncId`: add an optional parameter (Domain interface change, needs approval) or drop the column |
+| 4 | `last_sync_id` source | Open: the column is left out. `upsertMany()` has no `SyncId`; adding one is a Domain interface change (needs approval) plus one migration. `last_synced_at` is stored meanwhile |
 | 5 | `Http::pool` and the rate limiter | ✅ Decided: `fetchPages()` takes one slot per request and retries itself; `fetchPage()` leaves both to the page job |
 | 6 | Presentation → queue dispatch | The command must not import Infrastructure: needs an Application port/use case to start a sync, plus read ports for leads and batch status |
 | 7 | Orchestrator runtime when the last page is unknown | Raise job and Horizon `timeout` for the `leadscaptain` queue |
