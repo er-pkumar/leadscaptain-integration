@@ -9,8 +9,6 @@ use Illuminate\Support\Facades\Date;
 use Leadscaptain\Domain\Lead\Lead;
 use Leadscaptain\Domain\Lead\LeadCollection;
 use Leadscaptain\Domain\Lead\LeadRepository;
-use Leadscaptain\Domain\Lead\ValueObject\CountryCode;
-use Leadscaptain\Domain\Lead\ValueObject\Email;
 use Leadscaptain\Domain\Lead\ValueObject\ProfileKey;
 
 /**
@@ -58,9 +56,7 @@ final readonly class EloquentLeadRepository implements LeadRepository
 
     public function findByProfileKey(ProfileKey $profileKey): ?Lead
     {
-        $row = LeadModel::query()->where('profile_key', $profileKey->value)->first();
-
-        return $row === null ? null : self::toDomain($row);
+        return LeadModel::query()->where('profile_key', $profileKey->value)->first()?->toLead();
     }
 
     public function count(): int
@@ -99,20 +95,5 @@ final readonly class EloquentLeadRepository implements LeadRepository
     private static function fit(?string $value): ?string
     {
         return $value === null ? null : mb_substr($value, 0, self::TEXT_LENGTH);
-    }
-
-    private static function toDomain(LeadModel $row): Lead
-    {
-        return new Lead(
-            profileKey: new ProfileKey($row->profile_key),
-            fullName: $row->full_name,
-            email: Email::fromNullable($row->email),
-            positionTitle: $row->position_title,
-            companyName: $row->company_name,
-            industry: $row->industry,
-            location: $row->location,
-            countryCode: CountryCode::fromNullable($row->country_code),
-            attributes: $row->raw_attributes ?? [],
-        );
     }
 }

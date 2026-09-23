@@ -6,6 +6,10 @@ namespace Leadscaptain\Infrastructure\Persistence;
 
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Carbon;
+use Leadscaptain\Domain\Lead\Lead;
+use Leadscaptain\Domain\Lead\ValueObject\CountryCode;
+use Leadscaptain\Domain\Lead\ValueObject\Email;
+use Leadscaptain\Domain\Lead\ValueObject\ProfileKey;
 
 /**
  * Eloquent row for a stored lead. Only the Infrastructure layer uses it;
@@ -35,6 +39,21 @@ final class LeadModel extends Model
     protected $table = self::TABLE;
 
     protected $guarded = ['id'];
+
+    public function toLead(): Lead
+    {
+        return new Lead(
+            profileKey: new ProfileKey($this->profile_key),
+            fullName: $this->full_name,
+            email: Email::fromNullable($this->email),
+            positionTitle: $this->position_title,
+            companyName: $this->company_name,
+            industry: $this->industry,
+            location: $this->location,
+            countryCode: CountryCode::fromNullable($this->country_code),
+            attributes: $this->raw_attributes ?? [],
+        );
+    }
 
     /**
      * @return array<string, string>
