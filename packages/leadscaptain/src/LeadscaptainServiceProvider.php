@@ -13,6 +13,8 @@ final class LeadscaptainServiceProvider extends ServiceProvider
 {
     private const string CONFIG_PATH = __DIR__.'/../config/leadscaptain.php';
 
+    private const string MIGRATIONS_PATH = __DIR__.'/../database/migrations';
+
     public function register(): void
     {
         $this->mergeConfigFrom(self::CONFIG_PATH, 'leadscaptain');
@@ -22,10 +24,16 @@ final class LeadscaptainServiceProvider extends ServiceProvider
 
     public function boot(): void
     {
+        $this->loadMigrationsFrom(self::MIGRATIONS_PATH);
+
         if ($this->app->runningInConsole()) {
             $this->publishes([
                 self::CONFIG_PATH => $this->app->configPath('leadscaptain.php'),
             ], 'leadscaptain-config');
+
+            $this->publishesMigrations([
+                self::MIGRATIONS_PATH => $this->app->databasePath('migrations'),
+            ], 'leadscaptain-migrations');
         }
     }
 

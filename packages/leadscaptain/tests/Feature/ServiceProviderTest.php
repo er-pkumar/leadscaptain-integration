@@ -27,6 +27,28 @@ final class ServiceProviderTest extends TestCase
         $this->addToAssertionCount(1);
     }
 
+    public function test_it_loads_the_package_migrations(): void
+    {
+        $paths = array_map('realpath', $this->app->make('migrator')->paths());
+
+        $this->assertContains(realpath(__DIR__.'/../../database/migrations'), $paths);
+    }
+
+    public function test_the_migrations_are_publishable(): void
+    {
+        $pattern = database_path('migrations/*_create_leadscaptain_leads_table.php');
+
+        try {
+            $this->artisan('vendor:publish', ['--tag' => 'leadscaptain-migrations', '--force' => true])
+                ->assertSuccessful();
+
+            $this->assertNotEmpty(glob($pattern));
+        } finally {
+            // A published copy would be migrated twice by later tests.
+            array_map('unlink', glob($pattern) ?: []);
+        }
+    }
+
     public function test_the_config_is_publishable(): void
     {
         $this->artisan('vendor:publish', ['--tag' => 'leadscaptain-config', '--force' => true])
