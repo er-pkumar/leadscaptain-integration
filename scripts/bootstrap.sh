@@ -83,6 +83,9 @@ composer config repositories.leadscaptain \
     '{"type": "path", "url": "./packages/leadscaptain", "options": {"symlink": true}}'
 composer require "${PACKAGE_NAME}:@dev" --no-interaction
 
+log "Generating the application key if .env has none"
+grep -qE '^APP_KEY=.+' .env || php artisan key:generate --no-interaction
+
 log "Publishing package config"
 php artisan vendor:publish --tag=leadscaptain-config --no-interaction
 php artisan config:clear
