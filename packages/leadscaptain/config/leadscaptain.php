@@ -16,6 +16,16 @@ return [
     'leads_path' => env('LEADSCAPTAIN_LEADS_PATH', '/api/v1/leads'),
     'count_path' => env('LEADSCAPTAIN_COUNT_PATH', '/api/v1/leads/count'),
 
+    /*
+    | Authentication
+    | The API accepts an API key header (apiKeyAuth) or a Bearer token
+    | (bearerAuth). scheme: "api_key" or "bearer".
+    */
+    'auth' => [
+        'scheme' => env('LEADSCAPTAIN_AUTH_SCHEME', 'api_key'),
+        'header' => env('LEADSCAPTAIN_API_KEY_HEADER', 'X-API-Key'),
+    ],
+
     'pagination' => [
         'page_param' => env('LEADSCAPTAIN_PAGE_PARAM', 'page'),
         'page_size_param' => env('LEADSCAPTAIN_PAGE_SIZE_PARAM', 'limit'),
