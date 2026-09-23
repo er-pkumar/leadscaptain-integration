@@ -2,7 +2,7 @@ DC   := docker compose
 EXEC := $(DC) exec -u www-data app
 
 .DEFAULT_GOAL := help
-.PHONY: help setup build bootstrap up down migrate test package-test queue-up shell logs pint
+.PHONY: help setup build bootstrap up down migrate test package-test queue-up mock-up shell logs pint
 
 help: ## List available commands
 	@grep -E '^[a-zA-Z_-]+:.*?## ' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*?## "}; {printf "  %-14s %s\n", $$1, $$2}'
@@ -19,7 +19,7 @@ up: ## Start app, nginx and database
 	$(DC) up -d --wait
 
 down: ## Stop all containers (data is kept)
-	$(DC) --profile queue --profile test down
+	$(DC) --profile queue --profile test --profile mock down
 
 migrate: ## Run database migrations
 	$(EXEC) php artisan migrate --force
@@ -32,6 +32,9 @@ package-test: ## Run the package test suite standalone (Testbench)
 
 queue-up: ## Start Redis and Horizon
 	$(DC) --profile queue up -d
+
+mock-up: ## Start the mock Leadscaptain API (no API key needed)
+	$(DC) --profile mock up -d --wait mock-api
 
 shell: ## Open a shell in the app container
 	$(EXEC) sh

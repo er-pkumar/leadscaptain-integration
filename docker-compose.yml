@@ -73,6 +73,38 @@ services:
       redis:
         condition: service_healthy
 
+  # ---- Mock Leadscaptain API (no key needed): `docker compose --profile mock up -d --wait mock-api` ----
+  # Use it with LEADSCAPTAIN_BASE_URL=http://mock-api:8081 and LEADSCAPTAIN_API_KEY=local-dev-key.
+  # Settings are documented in docker/mock-api/README.md.
+  mock-api:
+    image: php:8.4-cli-alpine
+    profiles: ["mock"]
+    working_dir: /mock
+    command: ["php", "-S", "0.0.0.0:8081", "/mock/router.php"]
+    environment:
+      PHP_CLI_SERVER_WORKERS: ${MOCK_WORKERS:-8}
+      MOCK_API_KEY: ${MOCK_API_KEY:-local-dev-key}
+      MOCK_TOTAL_LEADS: ${MOCK_TOTAL_LEADS:-1234}
+      MOCK_DEFAULT_LIMIT: ${MOCK_DEFAULT_LIMIT:-20}
+      MOCK_MAX_LIMIT: ${MOCK_MAX_LIMIT:-100}
+      MOCK_LATENCY_MS: ${MOCK_LATENCY_MS:-0}
+      MOCK_FAIL_PAGES: ${MOCK_FAIL_PAGES:-}
+      MOCK_FLAKY_PAGES: ${MOCK_FLAKY_PAGES:-}
+      MOCK_503_FIRST_REQUESTS: ${MOCK_503_FIRST_REQUESTS:-0}
+      MOCK_RATE_LIMIT: ${MOCK_RATE_LIMIT:-0}
+      MOCK_RATE_WINDOW: ${MOCK_RATE_WINDOW:-60}
+      MOCK_HIDE_PAGINATION: ${MOCK_HIDE_PAGINATION:-0}
+    ports:
+      - "${FORWARD_MOCK_API_PORT:-8081}:8081"
+    volumes:
+      - ./docker/mock-api:/mock:ro
+    healthcheck:
+      test: ["CMD", "php", "-r", "exit(@file_get_contents('http://127.0.0.1:8081/health') === false ? 1 : 0);"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+    restart: unless-stopped
+
   # ---- Standalone package tests (no host app): `docker compose --profile test run --rm package-tests` ----
   package-tests:
     build:

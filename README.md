@@ -45,6 +45,7 @@ LEADSCAPTAIN_API_KEY=your-key-here
 | App tests | `make test` | `docker compose exec -u www-data app php artisan test` |
 | Package tests | `make package-test` | `docker compose --profile test run --rm package-tests` |
 | Queue stack | `make queue-up` | `docker compose --profile queue up -d` |
+| Mock API | `make mock-up` | `docker compose --profile mock up -d --wait mock-api` |
 | Shell | `make shell` | `docker compose exec -u www-data app sh` |
 | Logs | `make logs` | `docker compose logs -f` |
 
@@ -52,15 +53,36 @@ Always run `composer` and `artisan` inside the container. `DB_HOST=db` only
 resolves inside Docker, and path-repository symlinks created on Windows do
 not work in Linux containers.
 
+## Mock API (no API key needed)
+
+Until a real key is available, run the mock Leadscaptain API. It serves the
+documented `GET /api/v1/leads` response shape and can simulate 401, 429, 500 and
+503 responses:
+
+```bash
+make mock-up
+```
+
+Then point the app at it in `.env` and run `php artisan config:clear` in the container:
+
+```env
+LEADSCAPTAIN_BASE_URL=http://mock-api:8081
+LEADSCAPTAIN_API_KEY=local-dev-key
+```
+
+Going live only means setting the real base URL and key again. Details and failure
+settings: [docker/mock-api/README.md](docker/mock-api/README.md).
+
 ## Structure
 
 ```
 .
 ├── packages/leadscaptain/   reusable package (own Dockerfile + tests)
-├── docker/                  nginx and php config
+├── docker/                  nginx and php config, mock Leadscaptain API
+├── docs/architecture.md     architecture, data model and flow diagrams
 ├── scripts/bootstrap.sh     demo app setup
 ├── Dockerfile               app image (base / dev / prod targets)
-├── docker-compose.yml       app, nginx, db (+ redis, horizon, package-tests profiles)
+├── docker-compose.yml       app, nginx, db (+ redis, horizon, mock-api, package-tests profiles)
 └── Makefile
 ```
 
