@@ -1475,7 +1475,7 @@
             "dist": {
                 "type": "path",
                 "url": "./packages/leadscaptain",
-                "reference": "1068da2dd6a34185b808371c552e73f162b88577"
+                "reference": "8c21686905c9ad300bb8c6b744b55553697d10c1"
             },
             "require": {
                 "guzzlehttp/guzzle": "^7.8",
@@ -1484,8 +1484,10 @@
                 "illuminate/database": "^12.0|^13.0",
                 "illuminate/http": "^12.0|^13.0",
                 "illuminate/queue": "^12.0|^13.0",
+                "illuminate/redis": "^12.0|^13.0",
                 "illuminate/support": "^12.0|^13.0",
-                "php": "^8.4"
+                "php": "^8.4",
+                "psr/log": "^1.0|^2.0|^3.0"
             },
             "require-dev": {
                 "larastan/larastan": "^3.0",
