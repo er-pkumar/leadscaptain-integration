@@ -727,8 +727,8 @@ Every tracked file, grouped by folder. "Flow" links to the sections above.
 | `.dockerignore` | Excludes vendor, `.env`, caches, logs, compose files from the build context | `docker build` | F16 |
 | `.env.example` | Template for `.env`: `APP_ENV=local`, `APP_DEBUG=true`, Docker hosts, `LEADSCAPTAIN_*`, empty `APP_KEY` | `bootstrap.sh`, new clones | F2, F12 |
 | `.env` (not in git) | Real local settings, including `APP_KEY` and the API key | Laravel at runtime | F12 |
-| `.gitignore` | Ignores `vendor`, `node_modules`, `.env`, IDE folders, logs | git | |
-| `.phpunit.result.cache` | PHPUnit cache committed by the scaffold; rewritten by host test runs (candidate for `.gitignore`) | PHPUnit | F15 |
+| `.gitignore` | Ignores `vendor`, `node_modules`, `.env`, IDE folders, logs, PHPUnit caches | git | |
+| `.phpunit.result.cache` (not in git) | Local PHPUnit cache, rewritten on every host test run; ignored via `.gitignore` | PHPUnit | F15 |
 | `composer.json` / `composer.lock` | Host app dependencies; path repository to `./packages/leadscaptain` | Composer (inside the container only) | F2 |
 | `package.json` | Laravel skeleton front-end tooling (Vite); not used by this project | npm (unused) | |
 | `phpunit.xml` | Host app test config (SQLite in memory, sync queue, array cache) | `php artisan test` | F15 |
