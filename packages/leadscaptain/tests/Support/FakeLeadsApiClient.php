@@ -77,7 +77,7 @@ final class FakeLeadsApiClient implements LeadsApiClient
 
     public function fetchPages(PageNumber ...$pages): array
     {
-        $this->concurrentBatches[] = array_map(static fn (PageNumber $page): int => $page->value, $pages);
+        $this->concurrentBatches[] = array_values(array_map(static fn (PageNumber $page): int => $page->value, $pages));
 
         $results = [];
 
